@@ -29,7 +29,8 @@ public class PaymentProcessor {
     }
 
     @Async
-    public void process(UUID paymentId, PaymentRequest request, BigDecimal totalAmount) {
+    public void process(UUID paymentId, UUID idempotencyKey,
+                        PaymentRequest request, BigDecimal totalAmount) {
         try {
             Thread.sleep(processingDelayMs);
         } catch (InterruptedException exception) {
@@ -38,13 +39,24 @@ public class PaymentProcessor {
             return;
         }
 
-        PaymentStatus status = ThreadLocalRandom.current().nextBoolean()
+        ProcessingOutcome outcome = randomOutcome();
+        if (outcome == ProcessingOutcome.NO_CALLBACK) {
+            log.info(
+                    "Payment callback intentionally skipped to simulate no response: paymentId={}, orderId={}",
+                    paymentId,
+                    request.orderId()
+            );
+            return;
+        }
+
+        PaymentStatus status = outcome == ProcessingOutcome.APPROVED
                 ? PaymentStatus.APPROVED
                 : PaymentStatus.REJECTED;
 
         PaymentCallbackRequest callback = new PaymentCallbackRequest(
                 paymentId,
                 request.orderId(),
+                idempotencyKey,
                 status,
                 totalAmount,
                 request.currency(),
@@ -52,5 +64,16 @@ public class PaymentProcessor {
         );
 
         callbackService.send(callback);
+    }
+
+    protected ProcessingOutcome randomOutcome() {
+        ProcessingOutcome[] outcomes = ProcessingOutcome.values();
+        return outcomes[ThreadLocalRandom.current().nextInt(outcomes.length)];
+    }
+
+    protected enum ProcessingOutcome {
+        APPROVED,
+        REJECTED,
+        NO_CALLBACK
     }
 }

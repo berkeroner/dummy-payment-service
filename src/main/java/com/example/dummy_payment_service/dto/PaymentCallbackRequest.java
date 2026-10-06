@@ -9,6 +9,7 @@ import java.util.UUID;
 public record PaymentCallbackRequest(
         UUID paymentId,
         String orderId,
+        UUID idempotencyKey,
         PaymentStatus status,
         BigDecimal totalAmount,
         Currency currency,
