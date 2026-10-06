@@ -18,7 +18,9 @@ Servis, ödeme talebini hemen `PROCESSING` durumuyla kabul eder. Yapılandırıl
 2. Servis benzersiz bir `paymentId` üretir ve `202 Accepted` yanıtı döner.
 3. Ödeme arka planda asenkron olarak işlenir.
 4. Yapılandırılmış bekleme süresi tamamlandığında sonuç rastgele belirlenir.
-5. Sonuç `APPROVED` veya `REJECTED` ise ana uygulamanın callback endpoint'ine gönderilir; cevapsızlık senaryosunda callback gönderilmez.
+5. Sonuç sağlayıcı tarafında saklanır. Normal senaryoda ana uygulamanın callback
+   endpoint'ine gönderilir; cevapsızlık senaryosunda callback gönderilmez ve sonuç
+   durum sorgulama endpoint'i üzerinden alınabilir.
 
 ## Gereksinimler
 
@@ -140,6 +142,23 @@ Content-Type: application/json
 ```
 
 İade çağrısı aynı ödeme için idempotenttir ve `refundId` döndürür.
+
+### Ödeme Durumu Sorgulama
+
+Provider ödeme kimliğiyle sorgulama:
+
+```http
+GET /api/payments/{paymentId}
+```
+
+Provider yanıtı alınamadan bağlantı kesildiyse idempotency key ile sorgulama:
+
+```http
+GET /api/payments/by-idempotency-key/{idempotencyKey}
+```
+
+Her iki endpoint de güncel `PROCESSING`, `APPROVED` veya `REJECTED` durumunu,
+sipariş ve ödeme tanımlayıcılarını, tutarı ve para birimini döndürür.
 
 ### Callback
 

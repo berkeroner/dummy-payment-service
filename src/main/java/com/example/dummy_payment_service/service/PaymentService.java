@@ -4,6 +4,7 @@ import com.example.dummy_payment_service.dto.PaymentAcceptedResponse;
 import com.example.dummy_payment_service.dto.PaymentRequest;
 import com.example.dummy_payment_service.dto.RefundRequest;
 import com.example.dummy_payment_service.dto.RefundResponse;
+import com.example.dummy_payment_service.dto.PaymentStatusResponse;
 import com.example.dummy_payment_service.model.PaymentStatus;
 import com.example.dummy_payment_service.payment.PaymentStrategyFactory;
 import org.springframework.http.HttpStatus;
@@ -64,6 +65,43 @@ public class PaymentService {
         }
         return refunds.computeIfAbsent(paymentId, id -> new RefundResponse(
                 strategyFactory.get(request.method()).refund(id)));
+    }
+
+    public PaymentStatusResponse getStatus(UUID paymentId) {
+        AcceptedPayment payment = acceptedPayments.values().stream()
+                .filter(candidate -> candidate.response().paymentId().equals(paymentId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Payment not found: " + paymentId));
+        return toStatusResponse(payment);
+    }
+
+    public PaymentStatusResponse getStatusByIdempotencyKey(UUID idempotencyKey) {
+        AcceptedPayment payment = acceptedPayments.get(idempotencyKey);
+        if (payment == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Payment not found for idempotency key: " + idempotencyKey);
+        }
+        return toStatusResponse(payment);
+    }
+
+    private PaymentStatusResponse toStatusResponse(AcceptedPayment payment) {
+        PaymentAcceptedResponse accepted = payment.response();
+        PaymentStatus status = paymentProcessor.getStatus(accepted.paymentId());
+        if (status == null) {
+            status = PaymentStatus.PROCESSING;
+        }
+        BigDecimal totalAmount = payment.request().items().stream()
+                .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new PaymentStatusResponse(
+                accepted.paymentId(),
+                accepted.orderId(),
+                accepted.idempotencyKey(),
+                status,
+                totalAmount,
+                payment.request().currency(),
+                status == PaymentStatus.PROCESSING ? "Payment is processing" : "Payment " + status.name().toLowerCase());
     }
 
     private record AcceptedPayment(PaymentRequest request, PaymentAcceptedResponse response) {

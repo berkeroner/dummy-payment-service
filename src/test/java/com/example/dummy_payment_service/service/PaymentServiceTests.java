@@ -50,6 +50,12 @@ class PaymentServiceTests {
         assertThat(processor.request).isEqualTo(request);
         assertThat(processor.totalAmount).isEqualByComparingTo("1600.00");
         assertThat(processor.invocationCount).isEqualTo(1);
+
+        processor.providerStatus = PaymentStatus.APPROVED;
+        assertThat(service.getStatus(response.paymentId()).status())
+                .isEqualTo(PaymentStatus.APPROVED);
+        assertThat(service.getStatusByIdempotencyKey(idempotencyKey).paymentId())
+                .isEqualTo(response.paymentId());
     }
 
     @Test
@@ -137,6 +143,7 @@ class PaymentServiceTests {
         private PaymentRequest request;
         private BigDecimal totalAmount;
         private int invocationCount;
+        private PaymentStatus providerStatus = PaymentStatus.PROCESSING;
 
         private RecordingPaymentProcessor() {
             super(null, 0);
@@ -149,6 +156,11 @@ class PaymentServiceTests {
             this.request = request;
             this.totalAmount = totalAmount;
             this.invocationCount++;
+        }
+
+        @Override
+        public PaymentStatus getStatus(UUID paymentId) {
+            return providerStatus;
         }
     }
 }

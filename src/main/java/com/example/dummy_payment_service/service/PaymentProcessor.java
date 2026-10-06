@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -20,6 +22,7 @@ public class PaymentProcessor {
 
     private final CallbackService callbackService;
     private final long processingDelayMs;
+    private final ConcurrentMap<UUID, PaymentStatus> paymentStatuses = new ConcurrentHashMap<>();
 
     public PaymentProcessor(
             CallbackService callbackService,
@@ -31,6 +34,7 @@ public class PaymentProcessor {
     @Async
     public void process(UUID paymentId, UUID idempotencyKey,
                         PaymentRequest request, BigDecimal totalAmount) {
+        paymentStatuses.put(paymentId, PaymentStatus.PROCESSING);
         try {
             Thread.sleep(processingDelayMs);
         } catch (InterruptedException exception) {
@@ -41,6 +45,9 @@ public class PaymentProcessor {
 
         ProcessingOutcome outcome = randomOutcome();
         if (outcome == ProcessingOutcome.NO_CALLBACK) {
+            // The provider completed the payment, but its callback is deliberately
+            // skipped. The merchant can recover the result through status polling.
+            paymentStatuses.put(paymentId, PaymentStatus.APPROVED);
             log.info(
                     "Payment callback intentionally skipped to simulate no response: paymentId={}, orderId={}",
                     paymentId,
@@ -52,6 +59,7 @@ public class PaymentProcessor {
         PaymentStatus status = outcome == ProcessingOutcome.APPROVED
                 ? PaymentStatus.APPROVED
                 : PaymentStatus.REJECTED;
+        paymentStatuses.put(paymentId, status);
 
         PaymentCallbackRequest callback = new PaymentCallbackRequest(
                 paymentId,
@@ -64,6 +72,10 @@ public class PaymentProcessor {
         );
 
         callbackService.send(callback);
+    }
+
+    public PaymentStatus getStatus(UUID paymentId) {
+        return paymentStatuses.get(paymentId);
     }
 
     protected ProcessingOutcome randomOutcome() {
