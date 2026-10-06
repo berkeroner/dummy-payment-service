@@ -39,6 +39,7 @@ class PaymentProcessorTests {
         processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, REQUEST, new BigDecimal("1500.00"));
 
         assertThat(callbackService.callback).isNull();
+        assertThat(processor.getStatus(PAYMENT_ID)).isEqualTo(PaymentStatus.APPROVED);
     }
 
     @Test
@@ -55,6 +56,7 @@ class PaymentProcessorTests {
         assertThat(callbackService.callback.status()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(callbackService.callback.paymentId()).isEqualTo(PAYMENT_ID);
         assertThat(callbackService.callback.idempotencyKey()).isEqualTo(IDEMPOTENCY_KEY);
+        assertThat(processor.getStatus(PAYMENT_ID)).isEqualTo(PaymentStatus.APPROVED);
     }
 
     @Test
@@ -69,6 +71,7 @@ class PaymentProcessorTests {
 
         assertThat(callbackService.callback).isNotNull();
         assertThat(callbackService.callback.status()).isEqualTo(PaymentStatus.REJECTED);
+        assertThat(processor.getStatus(PAYMENT_ID)).isEqualTo(PaymentStatus.REJECTED);
     }
 
     private PaymentProcessor processorFor(
