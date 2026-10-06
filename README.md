@@ -2,7 +2,7 @@
 
 E-ticaret uygulamalarının ödeme entegrasyonlarını geliştirmek ve test etmek için hazırlanmış basit bir ödeme sağlayıcısı simülasyonudur. Gerçek bir ödeme işlemi veya para transferi gerçekleştirmez.
 
-Servis, ödeme talebini hemen `PROCESSING` durumuyla kabul eder. Yapılandırılabilir bir bekleme süresinin ardından sonucu rastgele `APPROVED` veya `REJECTED` olarak belirler ve ana uygulamaya HTTP callback gönderir.
+Servis, ödeme talebini hemen `PROCESSING` durumuyla kabul eder. Yapılandırılabilir bir bekleme süresinin ardından rastgele `APPROVED`, `REJECTED` veya cevapsızlık senaryolarından birini seçer. Cevapsızlık senaryosunda ana uygulamaya callback göndermez.
 
 ## Teknolojiler
 
@@ -18,7 +18,7 @@ Servis, ödeme talebini hemen `PROCESSING` durumuyla kabul eder. Yapılandırıl
 2. Servis benzersiz bir `paymentId` üretir ve `202 Accepted` yanıtı döner.
 3. Ödeme arka planda asenkron olarak işlenir.
 4. Yapılandırılmış bekleme süresi tamamlandığında sonuç rastgele belirlenir.
-5. Sonuç, ana uygulamanın callback endpoint'ine gönderilir.
+5. Sonuç `APPROVED` veya `REJECTED` ise ana uygulamanın callback endpoint'ine gönderilir; cevapsızlık senaryosunda callback gönderilmez.
 
 ## Gereksinimler
 
@@ -67,6 +67,7 @@ Servis varsayılan olarak `http://localhost:8081` adresinde çalışır.
 ```http
 POST /api/payments
 Content-Type: application/json
+Idempotency-Key: 22222222-2222-2222-2222-222222222222
 ```
 
 Örnek istek:
@@ -74,6 +75,8 @@ Content-Type: application/json
 ```json
 {
   "orderId": "42",
+  "method": "credit_card",
+  "paymentToken": "tok_test_123",
   "items": [
     {
       "productName": "Kablosuz Kulaklık",
@@ -93,6 +96,7 @@ Desteklenen para birimleri: `TRY`, `USD` ve `EUR`.
 {
   "paymentId": "e9126c96-5c9f-447e-8938-c824c5a89b7e",
   "orderId": "42",
+  "idempotencyKey": "22222222-2222-2222-2222-222222222222",
   "status": "PROCESSING"
 }
 ```
@@ -102,8 +106,11 @@ cURL örneği:
 ```bash
 curl --request POST http://localhost:8081/api/payments \
   --header "Content-Type: application/json" \
+  --header "Idempotency-Key: 22222222-2222-2222-2222-222222222222" \
   --data '{
     "orderId": "42",
+    "method": "credit_card",
+    "paymentToken": "tok_test_123",
     "items": [
       {
         "productName": "Kablosuz Kulaklık",
@@ -115,6 +122,25 @@ curl --request POST http://localhost:8081/api/payments \
   }'
 ```
 
+Desteklenen ödeme yöntemleri `credit_card`, `bank_transfer` ve
+`cash_on_delivery` değerleridir. `paymentToken` yalnızca `credit_card` için
+zorunludur.
+
+### İade
+
+```http
+POST /api/payments/{paymentId}/refunds
+Content-Type: application/json
+```
+
+```json
+{
+  "method": "credit_card"
+}
+```
+
+İade çağrısı aynı ödeme için idempotenttir ve `refundId` döndürür.
+
 ### Callback
 
 İşlem tamamlandığında yapılandırılmış callback adresine aşağıdaki biçimde bir `POST` isteği gönderilir:
@@ -123,6 +149,7 @@ curl --request POST http://localhost:8081/api/payments \
 {
   "paymentId": "e9126c96-5c9f-447e-8938-c824c5a89b7e",
   "orderId": "42",
+  "idempotencyKey": "22222222-2222-2222-2222-222222222222",
   "status": "APPROVED",
   "totalAmount": 1499.8,
   "currency": "TRY",
@@ -130,7 +157,7 @@ curl --request POST http://localhost:8081/api/payments \
 }
 ```
 
-Olası nihai durumlar `APPROVED` ve `REJECTED` değerleridir.
+Olası sonuçlar eşit olasılıkla `APPROVED`, `REJECTED` veya callback gönderilmeyen cevapsızlık senaryosudur.
 
 ## Testler
 
