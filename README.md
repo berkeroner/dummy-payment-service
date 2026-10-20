@@ -78,7 +78,7 @@ Idempotency-Key: 22222222-2222-2222-2222-222222222222
 {
   "orderId": "42",
   "method": "credit_card",
-  "paymentToken": "tok_test_123",
+  "paymentToken": "tok_success",
   "items": [
     {
       "productName": "Kablosuz Kulaklık",
@@ -112,7 +112,7 @@ curl --request POST http://localhost:8081/api/payments \
   --data '{
     "orderId": "42",
     "method": "credit_card",
-    "paymentToken": "tok_test_123",
+    "paymentToken": "tok_success",
     "items": [
       {
         "productName": "Kablosuz Kulaklık",
@@ -127,6 +127,15 @@ curl --request POST http://localhost:8081/api/payments \
 Desteklenen ödeme yöntemleri `credit_card`, `bank_transfer` ve
 `cash_on_delivery` değerleridir. `paymentToken` yalnızca `credit_card` için
 zorunludur.
+
+Kredi kartı test tokenları deterministik sonuç üretir:
+
+- `tok_success`: ödeme onaylanır ve callback gönderilir.
+- `tok_declined`: ödeme reddedilir ve callback gönderilir.
+- `tok_timeout`: ödeme sağlayıcıda onaylanır ancak callback gönderilmez;
+  sonuç durum sorgulama endpoint'i üzerinden alınabilir.
+
+Bunların dışındaki kredi kartı tokenları `422 Unprocessable Entity` ile reddedilir.
 
 ### İade
 

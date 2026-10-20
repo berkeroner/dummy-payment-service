@@ -20,37 +20,23 @@ class PaymentProcessorTests {
             UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID IDEMPOTENCY_KEY =
             UUID.fromString("22222222-2222-2222-2222-222222222222");
-    private static final PaymentRequest REQUEST = new PaymentRequest(
-            "order-456",
-            PaymentMethod.CREDIT_CARD,
-            "token",
-            List.of(new PaymentItemRequest("Kulaklik", 2, new BigDecimal("750.00"))),
-            Currency.TRY
-    );
-
     @Test
-    void doesNotSendCallbackForNoCallbackOutcome() {
+    void timeoutTokenDoesNotSendCallback() {
         RecordingCallbackService callbackService = new RecordingCallbackService();
-        PaymentProcessor processor = processorFor(
-                callbackService,
-                PaymentProcessor.ProcessingOutcome.NO_CALLBACK
-        );
+        PaymentProcessor processor = new PaymentProcessor(callbackService, 0);
 
-        processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, REQUEST, new BigDecimal("1500.00"));
+        processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, request("tok_timeout"), new BigDecimal("1500.00"));
 
         assertThat(callbackService.callback).isNull();
         assertThat(processor.getStatus(PAYMENT_ID)).isEqualTo(PaymentStatus.APPROVED);
     }
 
     @Test
-    void sendsApprovedCallbackForApprovedOutcome() {
+    void successTokenSendsApprovedCallback() {
         RecordingCallbackService callbackService = new RecordingCallbackService();
-        PaymentProcessor processor = processorFor(
-                callbackService,
-                PaymentProcessor.ProcessingOutcome.APPROVED
-        );
+        PaymentProcessor processor = new PaymentProcessor(callbackService, 0);
 
-        processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, REQUEST, new BigDecimal("1500.00"));
+        processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, request("tok_success"), new BigDecimal("1500.00"));
 
         assertThat(callbackService.callback).isNotNull();
         assertThat(callbackService.callback.status()).isEqualTo(PaymentStatus.APPROVED);
@@ -60,29 +46,25 @@ class PaymentProcessorTests {
     }
 
     @Test
-    void sendsRejectedCallbackForRejectedOutcome() {
+    void declinedTokenSendsRejectedCallback() {
         RecordingCallbackService callbackService = new RecordingCallbackService();
-        PaymentProcessor processor = processorFor(
-                callbackService,
-                PaymentProcessor.ProcessingOutcome.REJECTED
-        );
+        PaymentProcessor processor = new PaymentProcessor(callbackService, 0);
 
-        processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, REQUEST, new BigDecimal("1500.00"));
+        processor.process(PAYMENT_ID, IDEMPOTENCY_KEY, request("tok_declined"), new BigDecimal("1500.00"));
 
         assertThat(callbackService.callback).isNotNull();
         assertThat(callbackService.callback.status()).isEqualTo(PaymentStatus.REJECTED);
         assertThat(processor.getStatus(PAYMENT_ID)).isEqualTo(PaymentStatus.REJECTED);
     }
 
-    private PaymentProcessor processorFor(
-            RecordingCallbackService callbackService,
-            PaymentProcessor.ProcessingOutcome outcome) {
-        return new PaymentProcessor(callbackService, 0) {
-            @Override
-            protected ProcessingOutcome randomOutcome() {
-                return outcome;
-            }
-        };
+    private PaymentRequest request(String token) {
+        return new PaymentRequest(
+                "order-456",
+                PaymentMethod.CREDIT_CARD,
+                token,
+                List.of(new PaymentItemRequest("Kulaklik", 2, new BigDecimal("750.00"))),
+                Currency.TRY
+        );
     }
 
     private static final class RecordingCallbackService extends CallbackService {

@@ -2,7 +2,9 @@ package com.example.dummy_payment_service.service;
 
 import com.example.dummy_payment_service.dto.PaymentCallbackRequest;
 import com.example.dummy_payment_service.dto.PaymentRequest;
+import com.example.dummy_payment_service.model.PaymentMethod;
 import com.example.dummy_payment_service.model.PaymentStatus;
+import com.example.dummy_payment_service.payment.CreditCardTestToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,7 +45,7 @@ public class PaymentProcessor {
             return;
         }
 
-        ProcessingOutcome outcome = randomOutcome();
+        ProcessingOutcome outcome = outcomeFor(request);
         if (outcome == ProcessingOutcome.NO_CALLBACK) {
             // The provider completed the payment, but its callback is deliberately
             // skipped. The merchant can recover the result through status polling.
@@ -76,6 +78,19 @@ public class PaymentProcessor {
 
     public PaymentStatus getStatus(UUID paymentId) {
         return paymentStatuses.get(paymentId);
+    }
+
+    protected ProcessingOutcome outcomeFor(PaymentRequest request) {
+        if (request.method() != PaymentMethod.CREDIT_CARD) {
+            return randomOutcome();
+        }
+        CreditCardTestToken token = CreditCardTestToken.from(request.paymentToken())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid payment token"));
+        return switch (token) {
+            case SUCCESS -> ProcessingOutcome.APPROVED;
+            case DECLINED -> ProcessingOutcome.REJECTED;
+            case TIMEOUT -> ProcessingOutcome.NO_CALLBACK;
+        };
     }
 
     protected ProcessingOutcome randomOutcome() {

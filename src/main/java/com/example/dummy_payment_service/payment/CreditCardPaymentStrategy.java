@@ -23,6 +23,10 @@ public class CreditCardPaymentStrategy implements PaymentStrategy {
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_ENTITY, "Payment token is required");
         }
+        if (CreditCardTestToken.from(request.paymentToken()).isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY, "Invalid payment token");
+        }
     }
 
     @Override
