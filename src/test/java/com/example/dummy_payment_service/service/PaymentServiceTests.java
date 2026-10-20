@@ -28,7 +28,7 @@ class PaymentServiceTests {
         PaymentRequest request = new PaymentRequest(
                 "order-456",
                 PaymentMethod.CREDIT_CARD,
-                "token",
+                "tok_success",
                 List.of(
                         new PaymentItemRequest("Kulaklik", 2, new BigDecimal("750.00")),
                         new PaymentItemRequest("Kablo", 1, new BigDecimal("100.00"))
@@ -71,6 +71,21 @@ class PaymentServiceTests {
         org.assertj.core.api.Assertions.assertThatThrownBy(
                 () -> service.accept(UUID.randomUUID(), request))
                 .hasMessageContaining("Payment token is required");
+    }
+
+    @Test
+    void rejectsCreditCardPaymentWithUnknownToken() {
+        PaymentService service = service(new RecordingPaymentProcessor());
+        PaymentRequest request = new PaymentRequest(
+                "order-456",
+                PaymentMethod.CREDIT_CARD,
+                "tok_unknown",
+                List.of(new PaymentItemRequest("Kulaklik", 1, new BigDecimal("750.00"))),
+                Currency.TRY);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.accept(UUID.randomUUID(), request))
+                .hasMessageContaining("Invalid payment token");
     }
 
     @Test
